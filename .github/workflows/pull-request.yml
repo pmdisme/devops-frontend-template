@@ -4,8 +4,6 @@ on:
     types: [opened, synchronize, reopened]
 permissions:
   contents: read
-env:
-  GO_VERSION: 1.21 # Updated to a valid Go version
 jobs:
   lint-test:
     name: "Lint and Test"
@@ -14,18 +12,20 @@ jobs:
       - name: "Checkout"
         uses: "actions/checkout@v4"
 
-      - name: "Setup Go"
-        uses: actions/setup-go@v5
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v4
         with:
-          go-version: ${{ env.GO_VERSION }}
+          node-version: "22" # Match the Node.js version in your Dockerfile
+          cache: "pnpm" # Cache pnpm dependencies for faster builds
+
+      - name: "Install pnpm"
+        run: npm install -g pnpm
 
       - name: "Install Dependencies"
-        run: go mod tidy
+        run: pnpm install --frozen-lockfile
 
-      - name: "Golang CI Lint"
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.60
+      - name: "Run Linting"
+        run: pnpm run lint # Replace with your linting script if applicable
 
       - name: "Run Tests"
-        run: go test -v ./...
+        run: pnpm run test # Replace with your testing script if applicable
