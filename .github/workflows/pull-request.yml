@@ -19,7 +19,7 @@ jobs:
           cache: "pnpm" # Cache pnpm dependencies for faster builds
 
       - name: "Install pnpm"
-        run: npm install -g pnpm
+        run: npm install -g pnpm@latest
 
       - name: "Install Dependencies"
         run: pnpm install --frozen-lockfile
