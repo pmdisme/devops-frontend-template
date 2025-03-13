@@ -1,0 +1,66 @@
+name: "Deploy Production"
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+env:
+  APP_NAME: "gitops-demo-frontend"
+  NAMESPACE: "app-prod-<GROUP-6>"
+jobs:
+  build:
+    runs-on: "ubuntu-latest"
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@v4"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: "Build and push container"
+        run: |-
+          IMAGE_TAG="${GITHUB_REF#refs/*/}"
+
+          IMAGE_NAME="${{ secrets.DOCKER_USERNAME }}/${{ env.APP_NAME }}:${IMAGE_TAG}"
+
+          docker build -f docker/prod.Dockerfile -t "${IMAGE_NAME}" .
+          docker push "${IMAGE_NAME}"
+
+  deploy:
+      runs-on: 'ubuntu-latest'
+      permissions:
+        id-token: write
+        contents: read
+      needs: 'build'
+      steps:
+        - name: 'Checkout'
+          uses: 'actions/checkout@v4'
+          with:
+            repository: <YOUR_GITHUB_USERNAME>/k8s-manifest
+            token: ${{ secrets.GH_PAT }}
+            path: k8s-manifest
+
+        - name: Get the version from GITHUB_REF
+          id: version
+          run: |
+            VERSION="${GITHUB_REF#refs/*/}"  # Extract version from the GitHub ref
+            echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+        - name: Update version in vars.json
+          run: |
+            echo "Updating version in vars.json in namespace ${{ env.NAMESPACE }} to $VERSION"
+            jq --arg VERSION "$VERSION" --arg NAMESPACE "${{ env.NAMESPACE }}" '.["${{ env.NAMESPACE }}"].version = $VERSION' k8s-manifest/projects/gitops-demo-frontend/vars/vars.json > tmp.json && mv tmp.json k8s-manifest/projects/gitops-demo-frontend/vars/vars.json
+
+        - name: Commit changes to k8s-minifest
+          run: |
+            cd k8s-manifest
+            git config --global user.name "github-actions"
+            git config --global user.email "github-actions@github.com"
+            git add projects/gitops-demo-frontend/vars/vars.json
+            git commit -m "Update version ${{ env.APP_NAME }} in namespace ${{ env.NAMESPACE }} to $VERSION"
+            git push <YOUR_GITHUB>/k8s-manifest.git HEAD:main
